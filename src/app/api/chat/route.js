@@ -12,12 +12,39 @@ console.log(
     : "MISSING"
 );
 
+const testResponse = await fetch(
+  "https://openrouter.ai/api/v1/chat/completions",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "inclusionai/ling-3.0-flash-vl:free",
+      messages: [
+        {
+          role: "user",
+          content: "Say hello",
+        },
+      ],
+    }),
+  }
+);
+
+console.log(
+  "DIRECT FETCH STATUS:",
+  testResponse.status
+);
+
+console.log(
+  "DIRECT FETCH RESPONSE:",
+  await testResponse.text()
+);
+
 const client = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: "https://openrouter.ai/api/v1",
-  defaultHeaders: {
-    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-  },
 });
 console.log(
   "OPENROUTER_API_KEY exists:",
