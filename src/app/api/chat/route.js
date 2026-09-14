@@ -4,44 +4,6 @@ import { dashboardData } from "@/data/dashboardData";
 import { detectIntent } from "@/lib/intentDetector";
 import { aiTools } from "@/lib/aiTools";
 
-
-console.log(
-  "OPENROUTER_API_KEY:",
-  process.env.OPENROUTER_API_KEY
-    ? `exists (${process.env.OPENROUTER_API_KEY.length} chars)`
-    : "MISSING"
-);
-
-const testResponse = await fetch(
-  "https://openrouter.ai/api/v1/chat/completions",
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "inclusionai/ling-3.0-flash-vl:free",
-      messages: [
-        {
-          role: "user",
-          content: "Say hello",
-        },
-      ],
-    }),
-  }
-);
-
-console.log(
-  "DIRECT FETCH STATUS:",
-  testResponse.status
-);
-
-console.log(
-  "DIRECT FETCH RESPONSE:",
-  await testResponse.text()
-);
-
 const client = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: "https://openrouter.ai/api/v1",
@@ -476,6 +438,47 @@ export async function POST(request) {
     // -------------------------------------------------
 
     const body = await request.json();
+
+        // =================================================
+    // تست مستقیم OpenRouter در زمان اجرای API
+    // =================================================
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+
+    console.log("KEY INFO:", {
+      exists: !!apiKey,
+      length: apiKey?.length,
+      trimmedLength: apiKey?.trim().length,
+      startsWithSkOr: apiKey?.trim().startsWith("sk-or-"),
+      hasWhitespace: apiKey !== apiKey?.trim(),
+    });
+
+    const testResponse = await fetch(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey?.trim()}`,
+        },
+        body: JSON.stringify({
+          model: "inclusionai/ling-3.0-flash-vl:free",
+          messages: [
+            {
+              role: "user",
+              content: "Say hello",
+            },
+          ],
+        }),
+      },
+    );
+
+    console.log("DIRECT FETCH STATUS:", testResponse.status);
+
+    console.log(
+      "DIRECT FETCH RESPONSE:",
+      await testResponse.text(),
+    );
 
     const messages = body.messages || [];
 
