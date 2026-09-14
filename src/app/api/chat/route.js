@@ -4,6 +4,14 @@ import { dashboardData } from "@/data/dashboardData";
 import { detectIntent } from "@/lib/intentDetector";
 import { aiTools } from "@/lib/aiTools";
 
+
+console.log(
+  "OPENROUTER_API_KEY:",
+  process.env.OPENROUTER_API_KEY
+    ? `exists (${process.env.OPENROUTER_API_KEY.length} chars)`
+    : "MISSING"
+);
+
 const client = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: "https://openrouter.ai/api/v1",
