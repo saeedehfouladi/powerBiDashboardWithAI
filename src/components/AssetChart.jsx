@@ -5,7 +5,7 @@ import { Doughnut } from "react-chartjs-2";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const AssetChart = () => {
+const AssetChart = ({ setDashboardContext }) => {
   const data = {
     labels: [
       "لپ تاپ",
@@ -77,14 +77,31 @@ const AssetChart = () => {
       </h3>
 
       <div className="flex justify-center mb-6">
-        <div className="w-48 h-48">
+        <div
+          className="w-48 h-48 cursor-pointer"
+          onClick={() =>
+            setDashboardContext({
+              selectedEntity: "assets",
+              selectedSection: "asset-chart",
+            })
+          }
+        >
           <Doughnut data={data} options={options} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2">
         {items.map((item, index) => (
-          <div key={index} className="flex items-center justify-between">
+          <div
+            key={index}
+            onClick={() =>
+              setDashboardContext({
+                selectedEntity: "assets",
+                selectedSection: item,
+              })
+            }
+            className="flex items-center justify-between"
+          >
             <span className="text-sm text-gray-700">{item}</span>
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-gray-500">

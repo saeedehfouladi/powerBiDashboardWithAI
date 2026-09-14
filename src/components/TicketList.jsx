@@ -4,7 +4,7 @@ import {
   HiOutlineExclamationCircle,
 } from "react-icons/hi";
 
-const TicketList = () => {
+const TicketList = ({ setDashboardContext }) => {
   const tickets = [
     {
       id: 1,
@@ -66,7 +66,12 @@ const TicketList = () => {
       <div className="space-y-3">
         {tickets.map((ticket) => (
           <div
-            key={ticket.id}
+             key={ticket.id}
+  onClick={() =>
+    setDashboardContext({
+      selectedEntity: "tickets",
+      selectedSection: "ticket-list",
+    })}
             className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
           >
             <div className="flex-1">
