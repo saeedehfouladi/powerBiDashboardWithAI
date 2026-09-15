@@ -4,29 +4,30 @@ import { dashboardData } from "@/data/dashboardData";
 import { detectIntent } from "@/lib/intentDetector";
 import { aiTools } from "@/lib/aiTools";
 
+const MODEL = "inclusionai/ling-3.0-flash-vl:free";
+
 const client = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: "https://openrouter.ai/api/v1",
 });
-console.log(
-  "OPENROUTER_API_KEY exists:",
-  !!process.env.OPENROUTER_API_KEY
-);
 
 // =====================================================
-// دریافت داده مناسب از داشبورد
+// دریافت Dataset مناسب از داشبورد
 // =====================================================
 
 const getDashboardDataset = (entity, section) => {
-  if (entity === "assets") {
-    if (section === "asset-chart") {
-      return dashboardData.assetsByGroup;
-    }
+  if (entity === "assets" && section === "asset-chart") {
+    return dashboardData.assetsByGroup;
+  }
 
+  if (entity === "assets" && section === "assets-by-month") {
     return dashboardData.assetsByMonth;
   }
 
-  if (entity === "tickets") {
+  if (
+    entity === "tickets" &&
+    ["tickets-by-month", "bar-chart", "line-chart"].includes(section)
+  ) {
     return dashboardData.ticketsByMonth;
   }
 
@@ -46,7 +47,7 @@ const getDashboardDataset = (entity, section) => {
 };
 
 // =====================================================
-// توضیح بخش داشبورد
+// توضیح بخش‌های داشبورد
 // =====================================================
 
 const getSectionDescription = (entity, section) => {
@@ -76,7 +77,7 @@ const getSectionDescription = (entity, section) => {
 const executeTool = (name, args) => {
   switch (name) {
     // -------------------------------------------------
-    // دریافت داده داشبورد
+    // دریافت داده خام داشبورد
     // -------------------------------------------------
 
     case "get_dashboard_data": {
@@ -100,127 +101,107 @@ const executeTool = (name, args) => {
     // -------------------------------------------------
 
     case "analyze_data": {
-      let data;
+      const { entity, section, operation } = args;
 
-      // -------------------------------------------------
-      // انتخاب Dataset
-      // -------------------------------------------------
+      // -----------------------------------------------
+      // KPIهای عددی
+      // -----------------------------------------------
 
-      if (args.entity === "assets") {
-        if (args.section === "asset-chart") {
-          data = dashboardData.assetsByGroup;
-        } else if (args.section === "assets-by-month") {
-          data = dashboardData.assetsByMonth;
-        }
-      }
-
-      if (args.entity === "tickets") {
-        if (
-          args.section === "tickets-by-month" ||
-          args.section === "bar-chart" ||
-          args.section === "line-chart"
-        ) {
-          data = dashboardData.ticketsByMonth;
-        }
-      }
-
-      // -------------------------------------------------
-      // KPIها
-      // -------------------------------------------------
-
-      if (args.entity === "employees") {
+      if (entity === "employees") {
         return {
-          entity: "employees",
+          entity,
           section: "kpi",
-          operation: args.operation,
+          operation,
           result: dashboardData.employees,
         };
       }
 
-      if (args.entity === "projects") {
+      if (entity === "projects") {
         return {
-          entity: "projects",
+          entity,
           section: "kpi",
-          operation: args.operation,
+          operation,
           result: dashboardData.projects,
         };
       }
 
-      if (args.entity === "activeTickets") {
+      if (entity === "activeTickets") {
         return {
-          entity: "activeTickets",
+          entity,
           section: "kpi",
-          operation: args.operation,
+          operation,
           result: dashboardData.activeTickets,
         };
       }
 
-      // -------------------------------------------------
-      // بررسی وجود Dataset
-      // -------------------------------------------------
+      // -----------------------------------------------
+      // دریافت Dataset
+      // -----------------------------------------------
 
-      if (!data || !Array.isArray(data) || data.length === 0) {
+      const data = getDashboardDataset(entity, section);
+
+      if (!Array.isArray(data) || data.length === 0) {
         return {
           error: "داده مورد نظر پیدا نشد.",
         };
       }
 
-      // -------------------------------------------------
-      // بیشترین
-      // -------------------------------------------------
+      // -----------------------------------------------
+      // بیشترین مقدار
+      // -----------------------------------------------
 
-      if (args.operation === "maximum") {
+      if (operation === "maximum") {
         const maximum = data.reduce((max, item) =>
           item.value > max.value ? item : max,
         );
 
         return {
-          entity: args.entity,
-          section: args.section,
-          operation: "maximum",
+          entity,
+          section,
+          operation,
           result: maximum,
         };
       }
 
-      // -------------------------------------------------
-      // کمترین
-      // -------------------------------------------------
+      // -----------------------------------------------
+      // کمترین مقدار
+      // -----------------------------------------------
 
-      if (args.operation === "minimum") {
+      if (operation === "minimum") {
         const minimum = data.reduce((min, item) =>
           item.value < min.value ? item : min,
         );
 
         return {
-          entity: args.entity,
-          section: args.section,
-          operation: "minimum",
+          entity,
+          section,
+          operation,
           result: minimum,
         };
       }
 
-      // -------------------------------------------------
+      // -----------------------------------------------
       // میانگین
-      // -------------------------------------------------
+      // -----------------------------------------------
 
-      if (args.operation === "average") {
+      if (operation === "average") {
         const total = data.reduce((sum, item) => sum + item.value, 0);
 
         const average = total / data.length;
 
         return {
-          entity: args.entity,
-          section: args.section,
-          operation: "average",
+          entity,
+          section,
+          operation,
           result: Number(average.toFixed(2)),
         };
       }
 
-      // -------------------------------------------------
+      // -----------------------------------------------
       // رشد
-      // -------------------------------------------------
+      // -----------------------------------------------
 
-      if (args.operation === "growth") {
+      if (operation === "growth") {
         if (data.length < 2) {
           return {
             error: "داده کافی برای محاسبه رشد وجود ندارد.",
@@ -239,18 +220,18 @@ const executeTool = (name, args) => {
         const growth = ((last - first) / first) * 100;
 
         return {
-          entity: args.entity,
-          section: args.section,
-          operation: "growth",
+          entity,
+          section,
+          operation,
           result: Number(growth.toFixed(2)),
         };
       }
 
-      // -------------------------------------------------
+      // -----------------------------------------------
       // روند
-      // -------------------------------------------------
+      // -----------------------------------------------
 
-      if (args.operation === "trend") {
+      if (operation === "trend") {
         if (data.length < 2) {
           return {
             error: "داده کافی برای تحلیل روند وجود ندارد.",
@@ -266,17 +247,15 @@ const executeTool = (name, args) => {
         if (last > first) {
           direction = "up";
           label = "صعودی";
-        }
-
-        if (last < first) {
+        } else if (last < first) {
           direction = "down";
           label = "نزولی";
         }
 
         return {
-          entity: args.entity,
-          section: args.section,
-          operation: "trend",
+          entity,
+          section,
+          operation,
           result: {
             direction,
             label,
@@ -284,11 +263,11 @@ const executeTool = (name, args) => {
         };
       }
 
-      // -------------------------------------------------
+      // -----------------------------------------------
       // ناهنجاری
-      // -------------------------------------------------
+      // -----------------------------------------------
 
-      if (args.operation === "anomaly") {
+      if (operation === "anomaly") {
         const average =
           data.reduce((sum, item) => sum + item.value, 0) / data.length;
 
@@ -299,18 +278,18 @@ const executeTool = (name, args) => {
         });
 
         return {
-          entity: args.entity,
-          section: args.section,
-          operation: "anomaly",
+          entity,
+          section,
+          operation,
           result: anomalies,
         };
       }
 
-      // -------------------------------------------------
+      // -----------------------------------------------
       // پیش‌بینی
-      // -------------------------------------------------
+      // -----------------------------------------------
 
-      if (args.operation === "forecast") {
+      if (operation === "forecast") {
         if (data.length < 2) {
           return {
             error: "داده کافی برای پیش‌بینی وجود ندارد.",
@@ -320,11 +299,9 @@ const executeTool = (name, args) => {
         const n = data.length;
 
         const x = data.map((_, index) => index + 1);
-
         const y = data.map((item) => item.value);
 
         const sumX = x.reduce((sum, value) => sum + value, 0);
-
         const sumY = y.reduce((sum, value) => sum + value, 0);
 
         const sumXY = x.reduce(
@@ -332,7 +309,10 @@ const executeTool = (name, args) => {
           0,
         );
 
-        const sumX2 = x.reduce((sum, value) => sum + value * value, 0);
+        const sumX2 = x.reduce(
+          (sum, value) => sum + value * value,
+          0,
+        );
 
         const denominator = n * sumX2 - sumX * sumX;
 
@@ -342,18 +322,21 @@ const executeTool = (name, args) => {
           };
         }
 
-        const slope = (n * sumXY - sumX * sumY) / denominator;
+        const slope =
+          (n * sumXY - sumX * sumY) / denominator;
 
-        const intercept = (sumY - slope * sumX) / n;
+        const intercept =
+          (sumY - slope * sumX) / n;
 
         const nextX = n + 1;
 
-        const prediction = slope * nextX + intercept;
+        const prediction =
+          slope * nextX + intercept;
 
         return {
-          entity: args.entity,
-          section: args.section,
-          operation: "forecast",
+          entity,
+          section,
+          operation,
           result: {
             value: Math.round(prediction),
             slope: Number(slope.toFixed(4)),
@@ -361,12 +344,15 @@ const executeTool = (name, args) => {
         };
       }
 
-      // -------------------------------------------------
-      // خلاصه
-      // -------------------------------------------------
+      // -----------------------------------------------
+      // خلاصه آماری
+      // -----------------------------------------------
 
-      if (args.operation === "summary") {
-        const total = data.reduce((sum, item) => sum + item.value, 0);
+      if (operation === "summary") {
+        const total = data.reduce(
+          (sum, item) => sum + item.value,
+          0,
+        );
 
         const average = total / data.length;
 
@@ -379,9 +365,9 @@ const executeTool = (name, args) => {
         );
 
         return {
-          entity: args.entity,
-          section: args.section,
-          operation: "summary",
+          entity,
+          section,
+          operation,
           result: {
             total,
             average: Number(average.toFixed(2)),
@@ -401,7 +387,10 @@ const executeTool = (name, args) => {
     // -------------------------------------------------
 
     case "describe_dashboard_section": {
-      const description = getSectionDescription(args.entity, args.section);
+      const description = getSectionDescription(
+        args.entity,
+        args.section,
+      );
 
       if (!description) {
         return {
@@ -439,54 +428,8 @@ export async function POST(request) {
 
     const body = await request.json();
 
-        // =================================================
-    // تست مستقیم OpenRouter در زمان اجرای API
-    // =================================================
-
-    const apiKey = process.env.OPENROUTER_API_KEY;
-
-    console.log("KEY INFO:", {
-      exists: !!apiKey,
-      length: apiKey?.length,
-      trimmedLength: apiKey?.trim().length,
-      startsWithSkOr: apiKey?.trim().startsWith("sk-or-"),
-      hasWhitespace: apiKey !== apiKey?.trim(),
-    });
-
-    const testResponse = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey?.trim()}`,
-        },
-        body: JSON.stringify({
-          model: "inclusionai/ling-3.0-flash-vl:free",
-          messages: [
-            {
-              role: "user",
-              content: "Say hello",
-            },
-          ],
-        }),
-      },
-    );
-
-    console.log("DIRECT FETCH STATUS:", testResponse.status);
-
-    console.log(
-      "DIRECT FETCH RESPONSE:",
-      await testResponse.text(),
-    );
-
     const messages = body.messages || [];
-
     const dashboardContext = body.dashboardContext || {};
-
-    console.log("DASHBOARD CONTEXT:", dashboardContext);
-
-    console.log("MESSAGES FROM CLIENT:", messages);
 
     // -------------------------------------------------
     // آخرین پیام کاربر
@@ -500,24 +443,112 @@ export async function POST(request) {
       });
     }
 
-    console.log("USER QUESTION:", lastMessage.content);
+    const question = lastMessage.content.toLowerCase();
 
     // =================================================
-    // فقط برای description
-    // Intent قدیمی فعلاً اینجا باقی می‌ماند
+    // Insights
+    // =================================================
+
+    if (
+      question.includes("مهم‌ترین نکات") ||
+      question.includes("مهمترین نکات") ||
+      question.includes("نکات مهم") ||
+      question.includes("بینش") ||
+      question.includes("مهم‌ترین بینش") ||
+      question.includes("مهمترین بینش")
+    ) {
+      const overview = {
+        employees: dashboardData.employees,
+        projects: dashboardData.projects,
+        activeTickets: dashboardData.activeTickets,
+        assetsByMonth: dashboardData.assetsByMonth,
+        ticketsByMonth: dashboardData.ticketsByMonth,
+        assetsByGroup: dashboardData.assetsByGroup,
+      };
+
+      const insightCompletion =
+        await client.chat.completions.create({
+          model: MODEL,
+
+          messages: [
+            {
+              role: "system",
+
+              content: `
+تو دستیار داشبورد مدیریتی هستی.
+
+فقط و فقط از داده‌های زیر استفاده کن.
+هیچ داده، شاخص یا موجودیت دیگری اختراع نکن.
+
+داده‌های مجاز:
+
+- کارکنان
+- پروژه‌ها
+- تیکت‌های فعال
+- تیکت‌های ماهانه
+- دارایی‌های ماهانه
+- گروه‌های دارایی
+
+هرگز درباره فروش، درآمد، هزینه، مشتری، محصول یا دپارتمان صحبت نکن؛
+چون این داده‌ها در داشبورد وجود ندارند.
+
+سه تا پنج نکته مهم و قابل توجه از داده‌ها را به فارسی بیان کن.
+
+اگر داده‌ای برای یک نتیجه کافی نیست، آن نتیجه را بیان نکن.
+
+پاسخ کوتاه و مدیریتی باشد.
+
+عددها را با رقم فارسی بنویس.
+`,
+            },
+
+            {
+              role: "user",
+
+              content: `
+سؤال:
+
+${lastMessage.content}
+
+داده‌های واقعی داشبورد:
+
+${JSON.stringify(overview, null, 2)}
+`,
+            },
+          ],
+
+          tool_choice: "none",
+        });
+
+      const insightAnswer =
+        insightCompletion?.choices?.[0]?.message?.content ||
+        "اطلاعات کافی برای استخراج نکات مهم وجود ندارد.";
+
+      return Response.json({
+        answer: insightAnswer,
+      });
+    }
+
+    // =================================================
+    // Description Intent
     // =================================================
 
     const intent = detectIntent(lastMessage.content);
 
-    console.log("DESCRIPTION INTENT:", intent);
-
     if (intent.operation === "description") {
       const entity =
-        dashboardContext?.selectedEntity || intent.entity || "assets";
+        dashboardContext?.selectedEntity ||
+        intent.entity ||
+        "assets";
 
-      const section = dashboardContext?.selectedSection || "asset-chart";
+      const section =
+        dashboardContext?.selectedSection ||
+        "asset-chart";
 
-      const description = getSectionDescription(entity, section);
+      const description = getSectionDescription(
+        entity,
+        section,
+      );
 
       if (description) {
         return Response.json({
@@ -526,7 +557,8 @@ export async function POST(request) {
       }
 
       return Response.json({
-        answer: "اطلاعات کافی برای توضیح این بخش وجود ندارد.",
+        answer:
+          "اطلاعات کافی برای توضیح این بخش وجود ندارد.",
       });
     }
 
@@ -591,154 +623,67 @@ KPIها:
 - activeTickets
   تعداد تیکت‌های فعال.
 
-انتخاب operation
-
+=====================================================
+انتخاب Operation
 =====================================================
 
 عملیات قابل انجام توسط analyze_data:
 
 - maximum
-  برای پیدا کردن بیشترین مقدار.
-
 - minimum
-  برای پیدا کردن کمترین مقدار.
-
 - average
-  برای محاسبه میانگین.
-
 - growth
-  برای محاسبه درصد رشد بین اولین و آخرین مقدار داده.
-
 - trend
-  برای تشخیص روند کلی داده‌ها.
-
 - anomaly
-  برای پیدا کردن مقادیر غیرعادی.
-
 - forecast
-  برای پیش‌بینی مقدار دوره بعد بر اساس داده‌های قبلی.
-
 - summary
-  برای ارائه خلاصه آماری شامل مجموع، میانگین، بیشترین و کمترین مقدار.
 
 =====================================================
-
-قوانین پیش‌بینی
-
-=====================================================
-
-اگر کاربر از عباراتی مانند:
-
-- پیش‌بینی
-- ماه بعد
-- دوره بعد
-- مقدار بعدی
-- چقدر خواهد شد
-- چه تعداد خواهیم داشت
-- در آینده چقدر خواهد بود
-
-استفاده کرد و سؤال درباره داده‌های ماهانه بود، از operation برابر forecast استفاده کن.
-
-برای دارایی‌ها:
-
-→ entity: assets
-→ section: assets-by-month
-→ operation: forecast
-
-برای تیکت‌ها:
-
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: forecast
-
-Forecast فقط باید برای داده‌های دارای چند مقدار تاریخی استفاده شود.
-
-برای KPIهایی مانند employees، projects و activeTickets که فقط یک مقدار دارند، forecast را اجرا نکن.
-  =====================================================
-قوانین انتخاب داده برای دارایی‌ها
+قوانین دارایی‌ها
 =====================================================
 
 اگر سؤال درباره گروه یا نوع دارایی باشد:
 
-→ assets + asset-chart
+→ entity: assets
+→ section: asset-chart
 
 اگر سؤال درباره ماه‌ها یا تغییرات ماهانه دارایی‌ها باشد:
 
-→ assets + assets-by-month
+→ entity: assets
+→ section: assets-by-month
 
 مثال:
 
 «بیشترین دارایی کدام است؟»
 
-→ analyze_data
-→ entity: assets
-→ section: asset-chart
-→ operation: maximum
-
+→ assets + asset-chart + maximum
 
 «کمترین دارایی کدام است؟»
 
-→ analyze_data
-→ entity: assets
-→ section: asset-chart
-→ operation: minimum
-
+→ assets + asset-chart + minimum
 
 «میانگین دارایی‌ها چقدر است؟»
 
-→ analyze_data
-→ entity: assets
-→ section: asset-chart
-→ operation: average
-
+→ assets + asset-chart + average
 
 «دارایی‌ها در چه ماهی بیشترین مقدار را داشتند؟»
 
-→ analyze_data
-→ entity: assets
-→ section: assets-by-month
-→ operation: maximum
-
+→ assets + assets-by-month + maximum
 
 «روند دارایی‌ها چگونه است؟»
 
-→ analyze_data
-→ entity: assets
-→ section: assets-by-month
-→ operation: trend
-
+→ assets + assets-by-month + trend
 
 «دارایی‌ها چقدر رشد کرده‌اند؟»
 
-→ analyze_data
-→ entity: assets
-→ section: assets-by-month
-→ operation: growth
+→ assets + assets-by-month + growth
 
 «تعداد دارایی‌ها در ماه بعد چقدر خواهد بود؟»
 
-→ analyze_data
-→ entity: assets
-→ section: assets-by-month
-→ operation: forecast
+→ assets + assets-by-month + forecast
 
-
-«دارایی‌ها را برای ماه بعد پیش‌بینی کن.»
-
-→ analyze_data
-→ entity: assets
-→ section: assets-by-month
-→ operation: forecast
-
-
-«پیش‌بینی دارایی‌ها چیست؟»
-
-→ analyze_data
-→ entity: assets
-→ section: assets-by-month
-→ operation: forecast
 =====================================================
-قوانین انتخاب داده برای تیکت‌ها
+قوانین تیکت‌ها
 =====================================================
 
 برای سؤال‌هایی که درباره تعداد یا تغییرات تیکت‌ها در ماه‌های مختلف هستند:
@@ -750,86 +695,47 @@ Forecast فقط باید برای داده‌های دارای چند مقدار
 
 «بیشترین تیکت در چه ماهی بوده؟»
 
-→ analyze_data
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: maximum
-
+→ tickets + tickets-by-month + maximum
 
 «کمترین تیکت در چه ماهی بوده؟»
 
-→ analyze_data
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: minimum
-
+→ tickets + tickets-by-month + minimum
 
 «میانگین تیکت‌ها چقدر است؟»
 
-→ analyze_data
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: average
-
+→ tickets + tickets-by-month + average
 
 «روند تیکت‌ها چگونه است؟»
 
-→ analyze_data
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: trend
-
+→ tickets + tickets-by-month + trend
 
 «تعداد تیکت‌ها چقدر رشد کرده؟»
 
-→ analyze_data
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: growth
+→ tickets + tickets-by-month + growth
 
 «ماه بعد چند تیکت خواهیم داشت؟»
 
-→ analyze_data
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: forecast
+→ tickets + tickets-by-month + forecast
 
-
-«تعداد تیکت‌ها را پیش‌بینی کن.»
-
-→ analyze_data
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: forecast
-
-
-«پیش‌بینی تیکت‌ها چیست؟»
-
-→ analyze_data
-→ entity: tickets
-→ section: tickets-by-month
-→ operation: forecast
 =====================================================
-سؤال‌های مربوط به KPI
+قوانین KPI
 =====================================================
 
-اگر کاربر درباره تعداد کارکنان، پروژه‌ها یا تیکت‌های فعال سؤال کرد، از داده KPI مربوطه استفاده کن.
+اگر کاربر درباره تعداد کارکنان، پروژه‌ها یا تیکت‌های فعال سؤال کرد، از KPI مربوطه استفاده کن.
 
 مثال:
 
 «چند کارمند داریم؟»
 
-→ entity: employees
-
+→ employees
 
 «چند پروژه داریم؟»
 
-→ entity: projects
-
+→ projects
 
 «چند تیکت فعال داریم؟»
 
-→ entity: activeTickets
+→ activeTickets
 
 برای KPIهایی که فقط یک مقدار عددی دارند، عملیات maximum، minimum، average، growth، trend و forecast را روی آن‌ها اجرا نکن؛ مگر اینکه داده مناسب دیگری در داشبورد وجود داشته باشد.
 
@@ -845,22 +751,15 @@ Forecast فقط باید برای داده‌های دارای چند مقدار
 
 باید چهار Tool Call ایجاد شود:
 
-1. analyze_data
-   assets + asset-chart + maximum
-
-2. analyze_data
-   assets + asset-chart + minimum
-
-3. analyze_data
-   assets + asset-chart + average
-
-4. analyze_data
-   assets + assets-by-month + trend
+1. assets + asset-chart + maximum
+2. assets + asset-chart + minimum
+3. assets + asset-chart + average
+4. assets + assets-by-month + trend
 
 تمام Tool Callهای مستقل را در صورت امکان همزمان ایجاد کن.
 
 =====================================================
-قانون مهم درباره انتخاب Dataset
+قانون مهم Dataset
 =====================================================
 
 به تفاوت بین «بیشترین دارایی» و «بیشترین دارایی در ماه» دقت کن.
@@ -887,7 +786,7 @@ Forecast فقط باید برای داده‌های دارای چند مقدار
 
 - فقط بر اساس نتایج واقعی Toolها پاسخ بده.
 - همه نتایج مرتبط با سؤال را در پاسخ نهایی بیاور.
-- اگر چند نتیجه وجود دارد، آن‌ها را به صورت مرتب و خوانا ارائه کن.
+- اگر چند نتیجه وجود دارد، آن‌ها را مرتب و خوانا ارائه کن.
 - از توضیحات اضافی خودداری کن.
 - محاسبات جدید انجام نده.
 - اطلاعات جدید نساز.
@@ -915,46 +814,38 @@ ${JSON.stringify(dashboardContext, null, 2)}
     // انتخاب Tool
     // =================================================
 
-    console.log("REACHED AI");
+    const completion =
+      await client.chat.completions.create({
+        model: MODEL,
 
-    const completion = await client.chat.completions.create({
-      model: "inclusionai/ling-3.0-flash-vl:free",
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
 
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: userPrompt,
-        },
-      ],
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
 
-      tools: aiTools.map((tool) => ({
-        type: "function",
-        function: tool,
-      })),
+        tools: aiTools.map((tool) => ({
+          type: "function",
+          function: tool,
+        })),
 
-      tool_choice: "required",
-    });
+        tool_choice: "required",
+      });
 
-    const assistantMessage = completion?.choices?.[0]?.message;
+    const assistantMessage =
+      completion?.choices?.[0]?.message;
 
-    console.log(
-      "FULL ASSISTANT MESSAGE:",
-      JSON.stringify(assistantMessage, null, 2),
-    );
-
-    console.log(
-      "MESSAGE TOOL CALLS:",
-      JSON.stringify(assistantMessage?.tool_calls, null, 2),
-    );
-
-    const toolCalls = assistantMessage?.tool_calls || [];
+    const toolCalls =
+      assistantMessage?.tool_calls || [];
 
     // =================================================
-    // اگر AI ابزار انتخاب کرد
+    // اجرای Toolها
     // =================================================
 
     if (toolCalls.length > 0) {
@@ -966,36 +857,26 @@ ${JSON.stringify(dashboardContext, null, 2)}
         let toolArgs;
 
         try {
-          toolArgs = JSON.parse(toolCall.function.arguments);
-        } catch (error) {
-          console.error("TOOL ARGUMENT PARSE ERROR:", error);
-
+          toolArgs = JSON.parse(
+            toolCall.function.arguments,
+          );
+        } catch {
           toolMessages.push({
             role: "tool",
             tool_call_id: toolCall.id,
             content: JSON.stringify({
-              error: "پارامترهای Tool قابل پردازش نیستند.",
+              error:
+                "پارامترهای Tool قابل پردازش نیستند.",
             }),
           });
 
           continue;
         }
 
-        console.log("TOOL NAME:", toolName);
-
-        console.log("TOOL ARGS:", toolArgs);
-
-        // ---------------------------------------------
-        // اجرای واقعی Tool توسط JavaScript
-        // ---------------------------------------------
-
-        const toolResult = executeTool(toolName, toolArgs);
-
-        console.log("TOOL RESULT:", toolResult);
-
-        // ---------------------------------------------
-        // ارسال نتیجه Tool به AI
-        // ---------------------------------------------
+        const toolResult = executeTool(
+          toolName,
+          toolArgs,
+        );
 
         toolMessages.push({
           role: "tool",
@@ -1009,15 +890,15 @@ ${JSON.stringify(dashboardContext, null, 2)}
       // تولید پاسخ نهایی
       // =================================================
 
-      console.log("REACHED FINAL AI");
+      const finalCompletion =
+        await client.chat.completions.create({
+          model: MODEL,
 
-      const finalCompletion = await client.chat.completions.create({
-        model: "inclusionai/ling-3.0-flash-vl:free",
+          messages: [
+            {
+              role: "system",
 
-        messages: [
-          {
-            role: "system",
-            content: `
+              content: `
 تو پاسخ نهایی دستیار داشبورد هستی.
 
 بر اساس نتیجه ابزارها پاسخ بده.
@@ -1032,26 +913,24 @@ ${JSON.stringify(dashboardContext, null, 2)}
 - درباره Tool یا هوش مصنوعی صحبت نکن.
 - اگر چند نتیجه وجود دارد، همه را در یک پاسخ منظم ارائه کن.
 `,
-          },
+            },
 
-          {
-            role: "user",
-            content: lastMessage.content,
-          },
+            {
+              role: "user",
+              content: lastMessage.content,
+            },
 
-          assistantMessage,
+            assistantMessage,
 
-          ...toolMessages,
-        ],
+            ...toolMessages,
+          ],
 
-        tool_choice: "none",
-      });
+          tool_choice: "none",
+        });
 
       const finalAnswer =
         finalCompletion?.choices?.[0]?.message?.content ||
         "اطلاعات کافی برای پاسخ وجود ندارد.";
-
-      console.log("FINAL AI ANSWER:", finalAnswer);
 
       return Response.json({
         answer: finalAnswer,
@@ -1063,9 +942,8 @@ ${JSON.stringify(dashboardContext, null, 2)}
     // =================================================
 
     const fallbackAnswer =
-      assistantMessage?.content || "اطلاعات کافی برای پاسخ وجود ندارد.";
-
-    console.log("FALLBACK AI ANSWER:", fallbackAnswer);
+      assistantMessage?.content ||
+      "اطلاعات کافی برای پاسخ وجود ندارد.";
 
     return Response.json({
       answer: fallbackAnswer,
@@ -1073,9 +951,31 @@ ${JSON.stringify(dashboardContext, null, 2)}
   } catch (error) {
     console.error("API ERROR:", error);
 
+    // -------------------------------------------------
+    // OpenRouter Rate Limit
+    // -------------------------------------------------
+
+    if (error?.status === 429) {
+      return Response.json(
+        {
+          error:
+            "سهمیه استفاده از مدل هوش مصنوعی به پایان رسیده است.",
+        },
+        {
+          status: 429,
+        },
+      );
+    }
+
+    // -------------------------------------------------
+    // سایر خطاها
+    // -------------------------------------------------
+
     return Response.json(
       {
-        error: error.message,
+        error:
+          error?.message ||
+          "خطایی در پردازش درخواست رخ داد.",
       },
       {
         status: 500,
